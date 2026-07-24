@@ -229,6 +229,16 @@ class Arx5Solver:
         target_pose_6d: npt.NDArray[np.float64],
         current_joint_pos: npt.NDArray[np.float64],
     ) -> Tuple[int, npt.NDArray[np.float64]]: ...
+    def dls_inverse_kinematics(
+        self,
+        target_pose_6d: npt.NDArray[np.float64],
+        current_joint_pos: npt.NDArray[np.float64],
+        damping: float = 0.05,
+        max_iterations: int = 100,
+        position_tolerance: float = 1e-4,
+        orientation_tolerance: float = 1e-3,
+        max_joint_step: float = 0.2,
+    ) -> Tuple[int, npt.NDArray[np.float64]]: ...
     def multi_trial_ik(
         self,
         target_pose_6d: npt.NDArray[np.float64],

@@ -106,6 +106,10 @@ PYBIND11_MODULE(arx5_interface, m)
         .def("inverse_dynamics", &Arx5Solver::inverse_dynamics)
         .def("forward_kinematics", &Arx5Solver::forward_kinematics)
         .def("inverse_kinematics", &Arx5Solver::inverse_kinematics)
+        .def("dls_inverse_kinematics", &Arx5Solver::dls_inverse_kinematics, py::arg("target_pose_6d"),
+             py::arg("current_joint_pos"), py::arg("damping") = 0.05, py::arg("max_iterations") = 100,
+             py::arg("position_tolerance") = 1E-4, py::arg("orientation_tolerance") = 1E-3,
+             py::arg("max_joint_step") = 0.2)
         .def("get_ik_status_name", &Arx5Solver::get_ik_status_name)
         .def("multi_trial_ik", &Arx5Solver::multi_trial_ik);
     py::class_<RobotConfig>(m, "RobotConfig")

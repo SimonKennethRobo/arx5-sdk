@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16.3)
 project(arx5-sdk)
 
 set(CMAKE_BUILD_TYPE Debug)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON) # global PIC
@@ -32,6 +33,16 @@ include_directories(
     $ENV{CONDA_PREFIX}/include/urdfdom_headers
 )
 
+add_library(ArxSolver SHARED
+    src/app/solver_dls.cpp
+)
+target_link_libraries(ArxSolver PUBLIC
+    ${LIB_DIR}/libsolver.so
+    Eigen3::Eigen
+    orocos-kdl
+    kdl_parser::kdl_parser
+)
+
 add_library(ArxJointController SHARED
     src/app/joint_controller.cpp
     src/app/controller_base.cpp
@@ -39,11 +50,11 @@ add_library(ArxJointController SHARED
 )
 target_link_libraries(ArxJointController
     ${LIB_DIR}/libhardware.so
-    ${LIB_DIR}/libsolver.so
+    ArxSolver
     Eigen3::Eigen
     Threads::Threads
     spdlog::spdlog
-    kdl_parser
+    kdl_parser::kdl_parser
     orocos-kdl
     soem
 )
@@ -54,11 +65,11 @@ add_library(ArxCartesianController SHARED
 )
 target_link_libraries(ArxCartesianController
     ${LIB_DIR}/libhardware.so
-    ${LIB_DIR}/libsolver.so
+    ArxSolver
     Eigen3::Eigen
     Threads::Threads
     spdlog::spdlog
-    kdl_parser
+    kdl_parser::kdl_parser
     orocos-kdl
     soem
 )
@@ -76,7 +87,7 @@ target_link_libraries(test_joint_controller
     Eigen3::Eigen
     Threads::Threads
     spdlog::spdlog
-    kdl_parser
+    kdl_parser::kdl_parser
     orocos-kdl
     soem
 )
@@ -89,10 +100,21 @@ target_link_libraries(test_cartesian_controller
     spdlog::spdlog
     Eigen3::Eigen
     Threads::Threads
-    kdl_parser
+    kdl_parser::kdl_parser
     orocos-kdl
     soem
 )
+
+if(BUILD_TESTING)
+    add_executable(test_dls_ik
+        tests/test_dls_ik.cpp
+    )
+    target_compile_definitions(test_dls_ik PRIVATE ARX5_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_link_libraries(test_dls_ik
+        ArxSolver
+    )
+    add_test(NAME dls_ik_fk_round_trip COMMAND test_dls_ik)
+endif()
 
 add_subdirectory(python)
 
@@ -104,6 +126,6 @@ install(FILES ${LIB_DIR}/libhardware.so ${LIB_DIR}/libsolver.so
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}
 )
 
-install(TARGETS ArxJointController ArxCartesianController
+install(TARGETS ArxSolver ArxJointController ArxCartesianController
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}
 )

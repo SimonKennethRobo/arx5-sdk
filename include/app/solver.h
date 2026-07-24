@@ -12,11 +12,12 @@
 #include <kdl/segment.hpp>
 #include <kdl/solveri.hpp>
 #include <kdl/tree.hpp>
-#include <kdl_parser/kdl_parser.hpp>
 #include <math.h>
+#include <memory>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <tuple>
 #include <vector>
 
 #include <unordered_map>
@@ -45,6 +46,19 @@ class Arx5Solver
     // Call `get_ik_status_name(ik_status)` to get the error message
     std::tuple<int, Eigen::VectorXd> inverse_kinematics(Eigen::Matrix<double, 6, 1> target_pose_6d,
                                                         Eigen::VectorXd current_joint_pos);
+    /**
+     * Iterative damped-least-squares inverse kinematics.
+     *
+     * The pose convention is the same as forward_kinematics(): x, y, z,
+     * roll, pitch, yaw.  On success the status is KDL::SolverI::E_NOERROR.
+     * If the requested tolerances are not reached within max_iterations,
+     * KDL::SolverI::E_MAX_ITERATIONS_EXCEEDED and the best joint position
+     * reached by the iteration are returned.
+     */
+    std::tuple<int, Eigen::VectorXd>
+    dls_inverse_kinematics(Eigen::Matrix<double, 6, 1> target_pose_6d, Eigen::VectorXd current_joint_pos,
+                           double damping = 0.05, int max_iterations = 100, double position_tolerance = 1E-4,
+                           double orientation_tolerance = 1E-3, double max_joint_step = 0.2);
     std::string get_ik_status_name(int ik_status);
     Eigen::Matrix<double, 6, 1> forward_kinematics(Eigen::VectorXd joint_pos);
 

@@ -15,6 +15,7 @@ pybind11_add_module(arx5_interface
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/app/joint_controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/app/cartesian_controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/app/controller_base.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/app/solver_dls.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/utils.cpp
 )
 
@@ -35,7 +36,7 @@ target_link_libraries(arx5_interface PRIVATE
     spdlog::spdlog
     Eigen3::Eigen
     Threads::Threads
-    kdl_parser
+    kdl_parser::kdl_parser
     orocos-kdl
     pthread
     soem
