@@ -34,7 +34,10 @@ void Arx5CartesianController::set_eef_cmd(EEFState new_cmd)
     // auto [success, target_joint_pos] = solver_->inverse_kinematics(new_cmd.pose_6d, current_joint_state.pos);
 
     std::tuple<int, VecDoF> ik_results;
-    ik_results = multi_trial_ik(new_cmd.pose_6d, joint_state_.pos);
+    if (controller_config_.use_dls_ik)
+        ik_results = solver_->dls_inverse_kinematics(new_cmd.pose_6d, joint_state_.pos);
+    else
+        ik_results = multi_trial_ik(new_cmd.pose_6d, joint_state_.pos);
     int ik_status = std::get<0>(ik_results);
 
     if (new_cmd.timestamp == 0)
@@ -78,7 +81,10 @@ void Arx5CartesianController::set_eef_traj(std::vector<EEFState> new_traj)
             throw std::invalid_argument("EEFState timestamps must be in ascending order");
         JointState current_joint_state = get_joint_state();
         std::tuple<int, VecDoF> ik_results;
-        ik_results = multi_trial_ik(eef_state.pose_6d, current_joint_state.pos);
+        if (controller_config_.use_dls_ik)
+            ik_results = solver_->dls_inverse_kinematics(eef_state.pose_6d, current_joint_state.pos);
+        else
+            ik_results = multi_trial_ik(eef_state.pose_6d, current_joint_state.pos);
         int ik_status = std::get<0>(ik_results);
 
         JointState target_joint_state{robot_config_.joint_dof};

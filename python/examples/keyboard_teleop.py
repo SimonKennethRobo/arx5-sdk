@@ -1,20 +1,110 @@
-import time
-from pynput import keyboard
-
-from queue import Queue
 import os
+import select
 import sys
+import termios
+import threading
+import time
+import tty
+from queue import Queue
 
 import numpy as np
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
-from arx5_interface import Arx5CartesianController, ControllerConfigFactory, EEFState, Gain, LogLevel, RobotConfigFactory
+from arx5_interface import (
+    Arx5CartesianController,
+    ControllerConfigFactory,
+    EEFState,
+    Gain,
+    LogLevel,
+    RobotConfigFactory,
+)
 from multiprocessing.managers import SharedMemoryManager
 
-import time
 import click
+
+# Terminals only report that a key was typed, not when it's released, so "held"
+# state below is approximated: a key counts as held as long as the terminal's
+# own key-repeat keeps re-triggering it within this window. Raise this if
+# motion stutters between repeats, lower it for a snappier stop on release.
+HOLD_TIMEOUT = 0.3
+
+KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_PAGE_UP, KEY_PAGE_DOWN = range(6)
+
+ESCAPE_SEQUENCES = {
+    "\x1b[A": KEY_UP,
+    "\x1b[B": KEY_DOWN,
+    "\x1b[C": KEY_RIGHT,
+    "\x1b[D": KEY_LEFT,
+    "\x1b[5~": KEY_PAGE_UP,
+    "\x1b[6~": KEY_PAGE_DOWN,
+}
+
+
+class KeyboardReader:
+    """Approximates held-key state by reading raw keystrokes from the current
+    terminal (works over plain SSH, no X server / root access required)."""
+
+    def __init__(self):
+        self._last_seen = {}
+        self._lock = threading.Lock()
+        self._running = False
+        self._fd = sys.stdin.fileno()
+        self._old_settings = None
+        self._thread = None
+
+    def start(self):
+        self._old_settings = termios.tcgetattr(self._fd)
+        tty.setcbreak(self._fd)  # keeps Ctrl+C -> SIGINT, unlike full raw mode
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+        if self._old_settings is not None:
+            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._old_settings)
+
+    def _mark(self, key):
+        with self._lock:
+            self._last_seen[key] = time.monotonic()
+
+    def _read_char(self, timeout):
+        ready, _, _ = select.select([self._fd], [], [], timeout)
+        if ready:
+            return os.read(self._fd, 1).decode(errors="ignore")
+        return None
+
+    def _run(self):
+        while self._running:
+            ch = self._read_char(timeout=0.05)
+            if ch is None:
+                continue
+            if ch == "\x1b":
+                seq = ch
+                # Arrow / page keys arrive as a fast multi-byte burst; give it a
+                # brief window to complete before treating it as a bare escape.
+                for _ in range(4):
+                    nxt = self._read_char(timeout=0.01)
+                    if nxt is None:
+                        break
+                    seq += nxt
+                    if seq in ESCAPE_SEQUENCES:
+                        break
+                key = ESCAPE_SEQUENCES.get(seq)
+                if key is not None:
+                    self._mark(key)
+            else:
+                self._mark(ch)
+
+    def is_held(self, key, now=None):
+        now = now if now is not None else time.monotonic()
+        with self._lock:
+            last = self._last_seen.get(key)
+        return last is not None and (now - last) < HOLD_TIMEOUT
 
 
 def start_keyboard_teleop(controller: Arx5CartesianController):
@@ -33,67 +123,42 @@ def start_keyboard_teleop(controller: Arx5CartesianController):
     controller_config = controller.get_controller_config()
 
     print("Teleop tracking started.")
+    print(
+        "Controls: arrows = x/y, page up/down = z, q/a w/s e/d = roll/pitch/yaw, r/f = gripper, space = reset to home."
+    )
 
-    key_pressed = {
-        keyboard.Key.up: False,  # +x
-        keyboard.Key.down: False,  # -x
-        keyboard.Key.left: False,  # +y
-        keyboard.Key.right: False,  # -y
-        keyboard.Key.page_up: False,  # +z
-        keyboard.Key.page_down: False,  # -z
-        keyboard.KeyCode.from_char("q"): False,  # +roll
-        keyboard.KeyCode.from_char("a"): False,  # -roll
-        keyboard.KeyCode.from_char("w"): False,  # +pitch
-        keyboard.KeyCode.from_char("s"): False,  # -pitch
-        keyboard.KeyCode.from_char("e"): False,  # +yaw
-        keyboard.KeyCode.from_char("d"): False,  # -yaw
-        keyboard.KeyCode.from_char("r"): False,  # open gripper
-        keyboard.KeyCode.from_char("f"): False,  # close gripper
-        keyboard.Key.space: False,  # reset to home
-    }
+    reader = KeyboardReader()
+    reader.start()
 
-    def on_press(key):
-        if key in key_pressed:
-            key_pressed[key] = True
-
-    def on_release(key):
-        if key in key_pressed:
-            key_pressed[key] = False
-
-    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-    listener.start()
-
-    def get_filtered_keyboard_output(key_pressed: dict):
+    def get_filtered_keyboard_output():
+        now = time.monotonic()
         state = np.zeros(6, dtype=np.float64)
-        if key_pressed[keyboard.Key.up]:
+        if reader.is_held(KEY_UP, now):
             state[0] = 1
-        if key_pressed[keyboard.Key.down]:
+        if reader.is_held(KEY_DOWN, now):
             state[0] = -1
-        if key_pressed[keyboard.Key.left]:
+        if reader.is_held(KEY_LEFT, now):
             state[1] = 1
-        if key_pressed[keyboard.Key.right]:
+        if reader.is_held(KEY_RIGHT, now):
             state[1] = -1
-        if key_pressed[keyboard.Key.page_up]:
+        if reader.is_held(KEY_PAGE_UP, now):
             state[2] = 1
-        if key_pressed[keyboard.Key.page_down]:
+        if reader.is_held(KEY_PAGE_DOWN, now):
             state[2] = -1
-        if key_pressed[keyboard.KeyCode.from_char("q")]:
+        if reader.is_held("q", now):
             state[3] = 1
-        if key_pressed[keyboard.KeyCode.from_char("a")]:
+        if reader.is_held("a", now):
             state[3] = -1
-        if key_pressed[keyboard.KeyCode.from_char("w")]:
+        if reader.is_held("w", now):
             state[4] = 1
-        if key_pressed[keyboard.KeyCode.from_char("s")]:
+        if reader.is_held("s", now):
             state[4] = -1
-        if key_pressed[keyboard.KeyCode.from_char("e")]:
+        if reader.is_held("e", now):
             state[5] = 1
-        if key_pressed[keyboard.KeyCode.from_char("d")]:
+        if reader.is_held("d", now):
             state[5] = -1
 
-        if (
-            keyboard_queue.maxsize > 0
-            and keyboard_queue._qsize() == keyboard_queue.maxsize
-        ):
+        if keyboard_queue.maxsize > 0 and keyboard_queue._qsize() == keyboard_queue.maxsize:
             keyboard_queue._get()
 
         keyboard_queue.put(state)
@@ -103,51 +168,55 @@ def start_keyboard_teleop(controller: Arx5CartesianController):
     directions = np.zeros(6, dtype=np.float64)
     start_time = time.monotonic()
     loop_cnt = 0
-    while True:
-        eef_state = controller.get_eef_state()
-        print(
-            f"Time elapsed: {time.monotonic() - start_time:.03f}s, x: {eef_state.pose_6d()[0]:.03f}, y: {eef_state.pose_6d()[1]:.03f}, z: {eef_state.pose_6d()[2]:.03f}",
-            end="\r",
-        )
-        # keyboard state is in the format of (x y z roll pitch yaw)
-        prev_directions = directions
-        directions = np.zeros(7, dtype=np.float64)
-        state = get_filtered_keyboard_output(key_pressed)
-        key_open = key_pressed[keyboard.KeyCode.from_char("r")]
-        key_close = key_pressed[keyboard.KeyCode.from_char("f")]
-        key_space = key_pressed[keyboard.Key.space]
+    try:
+        while True:
+            eef_state = controller.get_eef_state()
+            print(
+                f"Time elapsed: {time.monotonic() - start_time:.03f}s, x: {eef_state.pose_6d()[0]:.03f}, y: {eef_state.pose_6d()[1]:.03f}, z: {eef_state.pose_6d()[2]:.03f}",
+                end="\r",
+            )
+            # keyboard state is in the format of (x y z roll pitch yaw)
+            prev_directions = directions
+            directions = np.zeros(7, dtype=np.float64)
+            state = get_filtered_keyboard_output()
+            now = time.monotonic()
+            key_open = reader.is_held("r", now)
+            key_close = reader.is_held("f", now)
+            key_space = reader.is_held(" ", now)
 
-        if key_space:
-            controller.reset_to_home()
-            target_pose_6d = controller.get_home_pose()
-            target_gripper_pos = 0.0
-            loop_cnt = 0
-            start_time = time.monotonic()
-            continue
-        elif key_open and not key_close:
-            gripper_cmd = 1
-        elif key_close and not key_open:
-            gripper_cmd = -1
-        else:
-            gripper_cmd = 0
+            if key_space:
+                controller.reset_to_home()
+                target_pose_6d = controller.get_home_pose()
+                target_gripper_pos = 0.0
+                loop_cnt = 0
+                start_time = time.monotonic()
+                continue
+            elif key_open and not key_close:
+                gripper_cmd = 1
+            elif key_close and not key_open:
+                gripper_cmd = -1
+            else:
+                gripper_cmd = 0
 
-        target_pose_6d[:3] += state[:3] * pos_speed * cmd_dt
-        target_pose_6d[3:] += state[3:] * ori_speed * cmd_dt
-        target_gripper_pos += gripper_cmd * gripper_speed * cmd_dt
-        if target_gripper_pos >= robot_config.gripper_width:
-            target_gripper_pos = robot_config.gripper_width
-        elif target_gripper_pos <= 0:
-            target_gripper_pos = 0
-        loop_cnt += 1
-        while time.monotonic() < start_time + loop_cnt * cmd_dt:
-            pass
+            target_pose_6d[:3] += state[:3] * pos_speed * cmd_dt
+            target_pose_6d[3:] += state[3:] * ori_speed * cmd_dt
+            target_gripper_pos += gripper_cmd * gripper_speed * cmd_dt
+            if target_gripper_pos >= robot_config.gripper_width:
+                target_gripper_pos = robot_config.gripper_width
+            elif target_gripper_pos <= 0:
+                target_gripper_pos = 0
+            loop_cnt += 1
+            while time.monotonic() < start_time + loop_cnt * cmd_dt:
+                pass
 
-        current_timestamp = controller.get_timestamp()
-        eef_cmd = EEFState()
-        eef_cmd.pose_6d()[:] = target_pose_6d
-        eef_cmd.gripper_pos = target_gripper_pos
-        eef_cmd.timestamp = current_timestamp + preview_time
-        controller.set_eef_cmd(eef_cmd)
+            current_timestamp = controller.get_timestamp()
+            eef_cmd = EEFState()
+            eef_cmd.pose_6d()[:] = target_pose_6d
+            eef_cmd.gripper_pos = target_gripper_pos
+            eef_cmd.timestamp = current_timestamp + preview_time
+            controller.set_eef_cmd(eef_cmd)
+    finally:
+        reader.stop()
 
 
 @click.command()
@@ -158,6 +227,7 @@ def main(model: str, interface: str):
     controller_config = ControllerConfigFactory.get_instance().get_config(
         "cartesian_controller", robot_config.joint_dof
     )
+    controller_config.use_dls_ik = True
     controller = Arx5CartesianController(robot_config, controller_config, interface)
     controller.reset_to_home()
 

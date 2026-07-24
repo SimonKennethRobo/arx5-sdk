@@ -264,17 +264,20 @@ class ControllerConfig
     //       X5 cannot be kept in the air.
     std::string interpolation_method; // "linear" or "cubic" (cubic is not well supported yet)
     double default_preview_time;      // The default value for preview time if the command has 0 timestamp
+    // Cartesian controller IK backend: false (default) uses multi_trial_ik (LMA solver with
+    // multiple random restarts); true uses the iterative damped-least-squares solver instead.
+    bool use_dls_ik;
 
     ControllerConfig(std::string controller_type, VecDoF default_kp, VecDoF default_kd, double default_gripper_kp,
                      double default_gripper_kd, int over_current_cnt_max, double controller_dt,
                      bool gravity_compensation, bool background_send_recv, bool shutdown_to_passive,
-                     std::string interpolation_method, double default_preview_time)
+                     std::string interpolation_method, double default_preview_time, bool use_dls_ik = false)
         : controller_type(controller_type), default_kp(default_kp), default_kd(default_kd),
           default_gripper_kp(default_gripper_kp), default_gripper_kd(default_gripper_kd),
           over_current_cnt_max(over_current_cnt_max), controller_dt(controller_dt),
           gravity_compensation(gravity_compensation), background_send_recv(background_send_recv),
           shutdown_to_passive(shutdown_to_passive), interpolation_method(interpolation_method),
-          default_preview_time(default_preview_time)
+          default_preview_time(default_preview_time), use_dls_ik(use_dls_ik)
     {
     }
 };

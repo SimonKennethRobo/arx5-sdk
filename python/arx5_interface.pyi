@@ -47,6 +47,7 @@ class ControllerConfig:
     shutdown_to_passive: bool
     interpolation_method: str
     default_preview_time: float
+    use_dls_ik: bool
 
 class RobotConfigFactory:
     @classmethod
