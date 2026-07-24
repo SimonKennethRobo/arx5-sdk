@@ -268,16 +268,35 @@ class ControllerConfig
     // multiple random restarts); true uses the iterative damped-least-squares solver instead.
     bool use_dls_ik;
 
+    // Parameters forwarded to Arx5Solver::dls_inverse_kinematics() when use_dls_ik is true.
+    // See include/app/solver.h for the meaning of each parameter.
+    double dls_damping;
+    int dls_max_iterations;
+    double dls_position_tolerance;    // m
+    double dls_orientation_tolerance; // rad
+    double dls_max_joint_step;        // rad, per iteration
+    // Relative weight of position vs. orientation error in the DLS update step (does not affect
+    // the tolerances above). Raise dls_orientation_weight relative to dls_position_weight to
+    // prioritize orientation tracking over position tracking, or vice versa.
+    double dls_position_weight;
+    double dls_orientation_weight;
+
     ControllerConfig(std::string controller_type, VecDoF default_kp, VecDoF default_kd, double default_gripper_kp,
                      double default_gripper_kd, int over_current_cnt_max, double controller_dt,
                      bool gravity_compensation, bool background_send_recv, bool shutdown_to_passive,
-                     std::string interpolation_method, double default_preview_time, bool use_dls_ik = false)
+                     std::string interpolation_method, double default_preview_time, bool use_dls_ik = false,
+                     double dls_damping = 0.05, int dls_max_iterations = 100, double dls_position_tolerance = 1E-4,
+                     double dls_orientation_tolerance = 1E-3, double dls_max_joint_step = 0.2,
+                     double dls_position_weight = 1.0, double dls_orientation_weight = 1.0)
         : controller_type(controller_type), default_kp(default_kp), default_kd(default_kd),
           default_gripper_kp(default_gripper_kp), default_gripper_kd(default_gripper_kd),
           over_current_cnt_max(over_current_cnt_max), controller_dt(controller_dt),
           gravity_compensation(gravity_compensation), background_send_recv(background_send_recv),
           shutdown_to_passive(shutdown_to_passive), interpolation_method(interpolation_method),
-          default_preview_time(default_preview_time), use_dls_ik(use_dls_ik)
+          default_preview_time(default_preview_time), use_dls_ik(use_dls_ik), dls_damping(dls_damping),
+          dls_max_iterations(dls_max_iterations), dls_position_tolerance(dls_position_tolerance),
+          dls_orientation_tolerance(dls_orientation_tolerance), dls_max_joint_step(dls_max_joint_step),
+          dls_position_weight(dls_position_weight), dls_orientation_weight(dls_orientation_weight)
     {
     }
 };

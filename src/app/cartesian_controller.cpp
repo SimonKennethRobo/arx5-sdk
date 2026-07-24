@@ -35,7 +35,13 @@ void Arx5CartesianController::set_eef_cmd(EEFState new_cmd)
 
     std::tuple<int, VecDoF> ik_results;
     if (controller_config_.use_dls_ik)
-        ik_results = solver_->dls_inverse_kinematics(new_cmd.pose_6d, joint_state_.pos);
+    {
+        ik_results = solver_->dls_inverse_kinematics(
+            new_cmd.pose_6d, joint_state_.pos, controller_config_.dls_damping, controller_config_.dls_max_iterations,
+            controller_config_.dls_position_tolerance, controller_config_.dls_orientation_tolerance,
+            controller_config_.dls_max_joint_step, controller_config_.dls_position_weight,
+            controller_config_.dls_orientation_weight);
+    }
     else
         ik_results = multi_trial_ik(new_cmd.pose_6d, joint_state_.pos);
     int ik_status = std::get<0>(ik_results);
@@ -55,7 +61,12 @@ void Arx5CartesianController::set_eef_cmd(EEFState new_cmd)
     std::lock_guard<std::mutex> guard(cmd_mutex_);
     interpolator_.override_waypoint(get_timestamp(), target_joint_state);
 
-    if (ik_status != 0)
+    // With DLS IK, E_MAX_ITERATIONS_EXCEEDED is expected (not a failure) when dls_max_iterations
+    // is intentionally kept low to run incremental per-tick steps instead of full convergence;
+    // the best joint position reached so far is still used as the target above.
+    bool is_expected_partial_step =
+        controller_config_.use_dls_ik && ik_status == KDL::SolverI::E_MAX_ITERATIONS_EXCEEDED;
+    if (ik_status != 0 && !is_expected_partial_step)
     {
         logger_->warn("Inverse kinematics failed: {} ({})", solver_->get_ik_status_name(ik_status), ik_status);
     }
@@ -82,7 +93,11 @@ void Arx5CartesianController::set_eef_traj(std::vector<EEFState> new_traj)
         JointState current_joint_state = get_joint_state();
         std::tuple<int, VecDoF> ik_results;
         if (controller_config_.use_dls_ik)
-            ik_results = solver_->dls_inverse_kinematics(eef_state.pose_6d, current_joint_state.pos);
+            ik_results = solver_->dls_inverse_kinematics(
+                eef_state.pose_6d, current_joint_state.pos, controller_config_.dls_damping,
+                controller_config_.dls_max_iterations, controller_config_.dls_position_tolerance,
+                controller_config_.dls_orientation_tolerance, controller_config_.dls_max_joint_step,
+                controller_config_.dls_position_weight, controller_config_.dls_orientation_weight);
         else
             ik_results = multi_trial_ik(eef_state.pose_6d, current_joint_state.pos);
         int ik_status = std::get<0>(ik_results);
@@ -97,7 +112,10 @@ void Arx5CartesianController::set_eef_traj(std::vector<EEFState> new_traj)
         joint_traj.push_back(target_joint_state);
         prev_timestamp = eef_state.timestamp;
 
-        if (ik_status != 0)
+        // See set_eef_cmd() for why E_MAX_ITERATIONS_EXCEEDED is expected (not a failure) with DLS IK.
+        bool is_expected_partial_step =
+            controller_config_.use_dls_ik && ik_status == KDL::SolverI::E_MAX_ITERATIONS_EXCEEDED;
+        if (ik_status != 0 && !is_expected_partial_step)
         {
             logger_->warn("Inverse kinematics failed: {} ({})", solver_->get_ik_status_name(ik_status), ik_status);
         }

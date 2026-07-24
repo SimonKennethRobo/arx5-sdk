@@ -109,7 +109,7 @@ PYBIND11_MODULE(arx5_interface, m)
         .def("dls_inverse_kinematics", &Arx5Solver::dls_inverse_kinematics, py::arg("target_pose_6d"),
              py::arg("current_joint_pos"), py::arg("damping") = 0.05, py::arg("max_iterations") = 100,
              py::arg("position_tolerance") = 1E-4, py::arg("orientation_tolerance") = 1E-3,
-             py::arg("max_joint_step") = 0.2)
+             py::arg("max_joint_step") = 0.2, py::arg("position_weight") = 1.0, py::arg("orientation_weight") = 1.0)
         .def("get_ik_status_name", &Arx5Solver::get_ik_status_name)
         .def("multi_trial_ik", &Arx5Solver::multi_trial_ik);
     py::class_<RobotConfig>(m, "RobotConfig")
@@ -146,7 +146,14 @@ PYBIND11_MODULE(arx5_interface, m)
         .def_readwrite("interpolation_method", &ControllerConfig::interpolation_method)
         .def_readwrite("default_preview_time", &ControllerConfig::default_preview_time)
         .def_readwrite("controller_dt", &ControllerConfig::controller_dt)
-        .def_readwrite("use_dls_ik", &ControllerConfig::use_dls_ik);
+        .def_readwrite("use_dls_ik", &ControllerConfig::use_dls_ik)
+        .def_readwrite("dls_damping", &ControllerConfig::dls_damping)
+        .def_readwrite("dls_max_iterations", &ControllerConfig::dls_max_iterations)
+        .def_readwrite("dls_position_tolerance", &ControllerConfig::dls_position_tolerance)
+        .def_readwrite("dls_orientation_tolerance", &ControllerConfig::dls_orientation_tolerance)
+        .def_readwrite("dls_max_joint_step", &ControllerConfig::dls_max_joint_step)
+        .def_readwrite("dls_position_weight", &ControllerConfig::dls_position_weight)
+        .def_readwrite("dls_orientation_weight", &ControllerConfig::dls_orientation_weight);
     py::class_<RobotConfigFactory>(m, "RobotConfigFactory")
         .def_static("get_instance", &RobotConfigFactory::get_instance, py::return_value_policy::reference)
         .def("get_config", &RobotConfigFactory::get_config);

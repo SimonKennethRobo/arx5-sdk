@@ -48,6 +48,13 @@ class ControllerConfig:
     interpolation_method: str
     default_preview_time: float
     use_dls_ik: bool
+    dls_damping: float
+    dls_max_iterations: int
+    dls_position_tolerance: float
+    dls_orientation_tolerance: float
+    dls_max_joint_step: float
+    dls_position_weight: float
+    dls_orientation_weight: float
 
 class RobotConfigFactory:
     @classmethod
@@ -239,6 +246,8 @@ class Arx5Solver:
         position_tolerance: float = 1e-4,
         orientation_tolerance: float = 1e-3,
         max_joint_step: float = 0.2,
+        position_weight: float = 1.0,
+        orientation_weight: float = 1.0,
     ) -> Tuple[int, npt.NDArray[np.float64]]: ...
     def multi_trial_ik(
         self,

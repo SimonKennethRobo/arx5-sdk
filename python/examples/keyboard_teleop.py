@@ -227,7 +227,7 @@ def main(model: str, interface: str):
     controller_config = ControllerConfigFactory.get_instance().get_config(
         "cartesian_controller", robot_config.joint_dof
     )
-    controller_config.use_dls_ik = True
+    controller_config.use_dls_ik = False
     controller = Arx5CartesianController(robot_config, controller_config, interface)
     controller.reset_to_home()
 

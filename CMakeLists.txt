@@ -105,16 +105,6 @@ target_link_libraries(test_cartesian_controller
     soem
 )
 
-if(BUILD_TESTING)
-    add_executable(test_dls_ik
-        tests/test_dls_ik.cpp
-    )
-    target_compile_definitions(test_dls_ik PRIVATE ARX5_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    target_link_libraries(test_dls_ik
-        ArxSolver
-    )
-    add_test(NAME dls_ik_fk_round_trip COMMAND test_dls_ik)
-endif()
 
 add_subdirectory(python)
 

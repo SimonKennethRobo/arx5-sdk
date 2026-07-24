@@ -54,11 +54,18 @@ class Arx5Solver
      * If the requested tolerances are not reached within max_iterations,
      * KDL::SolverI::E_MAX_ITERATIONS_EXCEEDED and the best joint position
      * reached by the iteration are returned.
+     *
+     * position_weight and orientation_weight scale the position/orientation
+     * rows of the task-space error (and Jacobian) before the damped
+     * least-squares solve, biasing convergence toward whichever error term
+     * has the larger weight. They do not affect position_tolerance /
+     * orientation_tolerance, which remain in physical units (m, rad).
      */
     std::tuple<int, Eigen::VectorXd>
     dls_inverse_kinematics(Eigen::Matrix<double, 6, 1> target_pose_6d, Eigen::VectorXd current_joint_pos,
                            double damping = 0.05, int max_iterations = 100, double position_tolerance = 1E-4,
-                           double orientation_tolerance = 1E-3, double max_joint_step = 0.2);
+                           double orientation_tolerance = 1E-3, double max_joint_step = 0.2,
+                           double position_weight = 1.0, double orientation_weight = 1.0);
     std::string get_ik_status_name(int ik_status);
     Eigen::Matrix<double, 6, 1> forward_kinematics(Eigen::VectorXd joint_pos);
 
