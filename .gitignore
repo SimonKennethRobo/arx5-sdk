@@ -5,3 +5,5 @@ python/data
 build
 install*
 wheels/wheelhouse
+.vscode
+tmp

@@ -50,6 +50,15 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     this->declare_parameter<bool>("gravity_compensation", true);
     this->declare_parameter<std::string>("base_frame", "base_link");
     this->declare_parameter<double>("joint_command_duration", 0.0);
+    // Gain scaling applied on top of the SDK's built-in default kp/kd for the
+    // selected controller mode. Defaults match the values used by the known-working
+    // hand-held phone teleop demo (ThuDemo), which softens the raw SDK defaults for
+    // safe manual operation.
+    this->declare_parameter<double>("kp_scale", 0.1);
+    this->declare_parameter<double>("kd_scale", 0.5);
+    // Gripper gain overrides; negative (default) keeps the SDK's built-in gripper gain.
+    this->declare_parameter<double>("gripper_kp", 2.0);
+    this->declare_parameter<double>("gripper_kd", -1.0);
 
     std::string model = this->get_parameter("model").as_string();
     std::string interface = this->get_parameter("interface").as_string();
@@ -108,8 +117,32 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     tracking_gain_ = std::make_unique<arx::Gain>(controller_config.default_kp, controller_config.default_kd,
                                                  controller_config.default_gripper_kp,
                                                  controller_config.default_gripper_kd);
+
+    double kp_scale = this->get_parameter("kp_scale").as_double();
+    double kd_scale = this->get_parameter("kd_scale").as_double();
+    double gripper_kp = this->get_parameter("gripper_kp").as_double();
+    double gripper_kd = this->get_parameter("gripper_kd").as_double();
+    if (std::abs(kp_scale - 1.0) > 1e-6)
+    {
+        tracking_gain_->kp *= kp_scale;
+    }
+    if (std::abs(kd_scale - 1.0) > 1e-6)
+    {
+        tracking_gain_->kd *= kd_scale;
+    }
+    if (gripper_kp >= 0.0)
+    {
+        tracking_gain_->gripper_kp = static_cast<float>(gripper_kp);
+    }
+    if (gripper_kd >= 0.0)
+    {
+        tracking_gain_->gripper_kd = static_cast<float>(gripper_kd);
+    }
+
     controller_->set_gain(*tracking_gain_);
-    RCLCPP_INFO(this->get_logger(), "Position-control gains enabled");
+    RCLCPP_INFO(this->get_logger(), "Position-control gains enabled (kp_scale=%.3f, kd_scale=%.3f, gripper_kp=%.3f, "
+                                    "gripper_kd=%.3f)",
+               kp_scale, kd_scale, tracking_gain_->gripper_kp, tracking_gain_->gripper_kd);
 
     arx::EEFState initial_eef = controller_->get_eef_state();
     arx::JointState initial_joint = controller_->get_joint_state();
@@ -157,12 +190,22 @@ void Arx5Ros2Node::send_target(double preview_time)
     {
         return;
     }
+    // A zero timestamp tells the controller to fall back to its own
+    // controller_config_.default_preview_time margin. Stamping an explicit
+    // "now" (preview_time == 0) leaves no safety margin: by the time the
+    // command reaches set_eef_cmd()/set_joint_cmd() (after IK, mutex, etc.)
+    // real time may have already passed that timestamp, which throws
+    // "End time must be no less than current time". Only stamp explicitly
+    // when the caller asked for a non-zero preview/duration.
     if (control_mode_ == "cartesian")
     {
         arx::EEFState command;
         command.pose_6d = target_pose_;
         command.gripper_pos = target_gripper_;
-        command.timestamp = controller_->get_timestamp() + preview_time;
+        if (preview_time > 0.0)
+        {
+            command.timestamp = controller_->get_timestamp() + preview_time;
+        }
         cartesian_controller_->set_eef_cmd(command);
     }
     else
@@ -170,7 +213,10 @@ void Arx5Ros2Node::send_target(double preview_time)
         arx::JointState command(joint_dof_);
         command.pos = target_joint_;
         command.gripper_pos = target_gripper_;
-        command.timestamp = controller_->get_timestamp() + preview_time;
+        if (preview_time > 0.0)
+        {
+            command.timestamp = controller_->get_timestamp() + preview_time;
+        }
         joint_controller_->set_joint_cmd(command);
     }
 }

@@ -16,7 +16,8 @@ from sensor_msgs.msg import JointState as JointStateMsg
 from std_msgs.msg import Float64, Float64MultiArray
 from std_srvs.srv import SetBool, Trigger
 
-PYTHON_DIR = os.path.dirname(os.path.abspath(__file__))
+COMMUNICATION_DIR = os.path.dirname(os.path.abspath(__file__))
+PYTHON_DIR = os.path.dirname(COMMUNICATION_DIR)
 SDK_ROOT_DIR = os.path.dirname(PYTHON_DIR)
 sys.path.insert(0, PYTHON_DIR)
 import arx5_interface as arx5  # noqa: E402
