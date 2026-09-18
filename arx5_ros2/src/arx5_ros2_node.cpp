@@ -1,6 +1,7 @@
 #include "arx5_ros2/arx5_ros2_node.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <csignal>
 #include <sys/stat.h>
@@ -44,7 +45,7 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
 {
     this->declare_parameter<std::string>("model", "X5");
     this->declare_parameter<std::string>("interface", "can0");
-    this->declare_parameter<std::string>("control_mode", "cartesian");
+    this->declare_parameter<std::string>("control_mode", "joint");
     this->declare_parameter<double>("publish_rate", 50.0);
     this->declare_parameter<bool>("auto_home", false);
     this->declare_parameter<bool>("gravity_compensation", true);
@@ -59,6 +60,13 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     // Gripper gain overrides; negative (default) keeps the SDK's built-in gripper gain.
     this->declare_parameter<double>("gripper_kp", 2.0);
     this->declare_parameter<double>("gripper_kd", -1.0);
+    // Canonical Go2-X5 graph topics. They are parameters so the wrapper can
+    // still be reused for a standalone arm without changing the SDK.
+    this->declare_parameter<std::string>("state_topic", "/go2_x5/arm/state");
+    this->declare_parameter<std::string>("command_topic", "/go2_x5/arm/command/target");
+    this->declare_parameter<std::string>("mode_command_topic", "/go2_x5/arm/mode/target");
+    this->declare_parameter<std::string>("mode_state_topic", "/go2_x5/arm/driver/mode");
+    this->declare_parameter<std::string>("joint_name_prefix", "x5_joint");
 
     std::string model = this->get_parameter("model").as_string();
     std::string interface = this->get_parameter("interface").as_string();
@@ -79,6 +87,11 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
         throw std::invalid_argument("joint_command_duration must be greater than zero");
     }
     base_frame_ = this->get_parameter("base_frame").as_string();
+    state_topic_ = this->get_parameter("state_topic").as_string();
+    command_topic_ = this->get_parameter("command_topic").as_string();
+    mode_command_topic_ = this->get_parameter("mode_command_topic").as_string();
+    mode_state_topic_ = this->get_parameter("mode_state_topic").as_string();
+    joint_name_prefix_ = this->get_parameter("joint_name_prefix").as_string();
 
     arx::RobotConfig robot_config = arx::RobotConfigFactory::get_instance().get_config(model);
     std::string urdf_path = std::string(ARX5_SDK_ROOT_DIR) + "/models/" + model + ".urdf";
@@ -151,9 +164,20 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     target_gripper_ = initial_eef.gripper_pos;
     last_joint_command_log_time_ = this->now();
 
-    joint_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("~/joint_states", rclcpp::SensorDataQoS());
+    joint_pub_ = this->create_publisher<sensor_msgs::msg::JointState>(state_topic_, rclcpp::SensorDataQoS());
+    mode_state_pub_ = this->create_publisher<std_msgs::msg::String>(mode_state_topic_, rclcpp::QoS(1).transient_local());
     eef_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("~/eef_state", rclcpp::SensorDataQoS());
     gripper_pub_ = this->create_publisher<std_msgs::msg::Float64>("~/gripper_state", rclcpp::SensorDataQoS());
+
+    // The canonical graph always uses a JointTrajectory for arm positions.
+    // Keep the old private Float64MultiArray endpoint for existing teleop
+    // scripts while making the new endpoint independent of control_mode.
+    joint_trajectory_sub_ = this->create_subscription<trajectory_msgs::msg::JointTrajectory>(
+        command_topic_, rclcpp::QoS(10),
+        std::bind(&Arx5Ros2Node::joint_trajectory_callback, this, std::placeholders::_1));
+    mode_command_sub_ = this->create_subscription<std_msgs::msg::String>(
+        mode_command_topic_, rclcpp::QoS(10),
+        std::bind(&Arx5Ros2Node::mode_command_callback, this, std::placeholders::_1));
 
     if (control_mode_ == "cartesian")
     {
@@ -180,8 +204,9 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
 
     RCLCPP_INFO(this->get_logger(), "ARX5 ready: model=%s, interface=%s, control_mode=%s, URDF=%s", model.c_str(),
                interface.c_str(), control_mode_.c_str(), urdf_path.c_str());
-    RCLCPP_INFO(this->get_logger(), "Listening for commands on %s",
-               control_mode_ == "cartesian" ? "~/eef_cmd" : "~/joint_cmd");
+    RCLCPP_INFO(this->get_logger(), "Canonical arm topics: state=%s command=%s mode=%s",
+                state_topic_.c_str(), command_topic_.c_str(), mode_command_topic_.c_str());
+    publish_mode_state();
 }
 
 void Arx5Ros2Node::send_target(double preview_time)
@@ -286,6 +311,113 @@ void Arx5Ros2Node::joint_command_callback(const std_msgs::msg::Float64MultiArray
     }
 }
 
+void Arx5Ros2Node::joint_trajectory_callback(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg)
+{
+    if (floating_ || control_mode_ != "joint")
+    {
+        return;
+    }
+    if (msg->points.empty())
+    {
+        RCLCPP_WARN(this->get_logger(), "Ignoring empty arm trajectory");
+        return;
+    }
+    const auto &point = msg->points.back();
+    if (static_cast<int>(point.positions.size()) != joint_dof_)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Expected %d arm positions, received %zu", joint_dof_, point.positions.size());
+        return;
+    }
+    if (!msg->joint_names.empty() && static_cast<int>(msg->joint_names.size()) == joint_dof_)
+    {
+        for (int i = 0; i < joint_dof_; ++i)
+        {
+            const std::string expected = joint_name_prefix_ + std::to_string(i + 1);
+            if (msg->joint_names[i] != expected)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Joint %d is '%s', expected '%s'", i,
+                             msg->joint_names[i].c_str(), expected.c_str());
+                return;
+            }
+        }
+    }
+    for (int i = 0; i < joint_dof_; ++i)
+    {
+        target_joint_[i] = point.positions[i];
+    }
+    double preview = static_cast<double>(point.time_from_start.sec) +
+                     1e-9 * static_cast<double>(point.time_from_start.nanosec);
+    if (preview <= 0.0) preview = joint_command_duration_;
+    send_target(preview);
+}
+
+void Arx5Ros2Node::mode_command_callback(const std_msgs::msg::String::SharedPtr msg)
+{
+    std::string mode = msg->data;
+    std::transform(mode.begin(), mode.end(), mode.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    try
+    {
+        if (mode == "HOME")
+        {
+            controller_->reset_to_home();
+            floating_ = false;
+            controller_->set_gain(*tracking_gain_);
+            current_mode_ = "HOME";
+        }
+        else if (mode == "HOLD")
+        {
+            const auto state = controller_->get_joint_state();
+            target_joint_ = state.pos;
+            const auto eef = controller_->get_eef_state();
+            target_pose_ = eef.pose_6d;
+            target_gripper_ = eef.gripper_pos;
+            if (floating_) send_target_after_float();
+            else { controller_->set_gain(*tracking_gain_); send_target(); }
+            floating_ = false;
+            current_mode_ = "HOLD";
+        }
+        else if (mode == "DAMPING")
+        {
+            controller_->set_to_damping();
+            floating_ = true;
+            current_mode_ = "DAMPING";
+        }
+        else if (mode == "OCS2")
+        {
+            if (floating_)
+            {
+                const auto state = controller_->get_joint_state();
+                target_joint_ = state.pos;
+                const auto eef = controller_->get_eef_state();
+                target_pose_ = eef.pose_6d;
+                target_gripper_ = eef.gripper_pos;
+                send_target_after_float();
+            }
+            floating_ = false;
+            current_mode_ = "OCS2";
+        }
+        else
+        {
+            RCLCPP_WARN(this->get_logger(), "Unknown arm mode '%s'", msg->data.c_str());
+            return;
+        }
+        publish_mode_state();
+    }
+    catch (const std::exception &error)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Failed to enter arm mode %s: %s", mode.c_str(), error.what());
+    }
+}
+
+void Arx5Ros2Node::publish_mode_state()
+{
+    if (!mode_state_pub_) return;
+    std_msgs::msg::String msg;
+    msg.data = current_mode_;
+    mode_state_pub_->publish(msg);
+}
+
 void Arx5Ros2Node::gripper_command_callback(const std_msgs::msg::Float64::SharedPtr msg)
 {
     if (floating_)
@@ -373,7 +505,7 @@ void Arx5Ros2Node::publish_state()
     joint_msg.effort.resize(joint_dof_);
     for (int i = 0; i < joint_dof_; ++i)
     {
-        joint_msg.name[i] = "joint" + std::to_string(i + 1);
+        joint_msg.name[i] = joint_name_prefix_ + std::to_string(i + 1);
         joint_msg.position[i] = joint_state.pos[i];
         joint_msg.velocity[i] = joint_state.vel[i];
         joint_msg.effort[i] = joint_state.torque[i];
@@ -411,6 +543,7 @@ void Arx5Ros2Node::stop()
         RCLCPP_ERROR(this->get_logger(), "Failed to return home: %s", error.what());
     }
     controller_->set_to_damping();
+    current_mode_ = "DAMPING";
 }
 
 } // namespace arx5_ros2

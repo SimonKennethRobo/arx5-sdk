@@ -37,18 +37,16 @@ are resolved from ROS's own lib dir first).
 
 ## Topics & services
 
-Given `control_mode:=cartesian` (default):
+The Go2-X5 integration uses a request/target split. This node is the actuator
+endpoint and never publishes back onto a request topic:
 
-- Publishes `/joint_states` (`sensor_msgs/JointState`)
-- Publishes `~/eef_state` (`geometry_msgs/PoseStamped`)
-- Publishes `~/gripper_state` (`std_msgs/Float64`)
-- Subscribes `~/eef_command` (`geometry_msgs/PoseStamped`)
-- Subscribes `~/gripper_command` (`std_msgs/Float64`)
-- Service `~/reset_to_home` (`std_srvs/Trigger`)
-- Service `~/float_mode` (`std_srvs/SetBool`)
+- Publishes `/go2_x5/arm/state` (`sensor_msgs/msg/JointState`) with names `x5_joint1` ... `x5_joint6`.
+- Publishes `/go2_x5/arm/driver/mode` (`std_msgs/msg/String`) as the SDK execution state.
+- Subscribes `/go2_x5/arm/command/target` (`trajectory_msgs/msg/JointTrajectory`).
+- Subscribes `/go2_x5/arm/mode/target` (`std_msgs/msg/String`) with `HOME`, `HOLD`, `DAMPING`, or `OCS2`.
 
-With `control_mode:=joint`, `~/eef_command` is replaced by `~/joint_command`
-(`std_msgs/Float64MultiArray`, one value per joint).
+The private EEF/gripper endpoints and reset/float services remain available for
+standalone arm tooling. Use `control_mode:=joint` for the Go2-X5 graph.
 
 ## Parameters
 
@@ -56,7 +54,7 @@ With `control_mode:=joint`, `~/eef_command` is replaced by `~/joint_command`
 | -------------------------- | ------ | ------------- | -------------------------------------------- |
 | `model`                  | string | `X5`        | `X5`, `X5_umi`, `L5`, `X7_left`, ... |
 | `interface`              | string | `can0`      | CAN interface name                           |
-| `control_mode`           | string | `cartesian` | `cartesian` or `joint`                   |
+| `control_mode`           | string | `joint` | `cartesian` or `joint`                   |
 | `publish_rate`           | double | `50.0`      | Hz, state publish rate                       |
 | `auto_home`              | bool   | `false`     | Move to home on startup                      |
 | `gravity_compensation`   | bool   | `true`      |                                              |

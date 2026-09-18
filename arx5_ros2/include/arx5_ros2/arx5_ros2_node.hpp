@@ -10,6 +10,8 @@
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_srvs/srv/set_bool.hpp>
@@ -34,12 +36,15 @@ class Arx5Ros2Node : public rclcpp::Node
 
     void eef_command_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
     void joint_command_callback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
+    void joint_trajectory_callback(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg);
+    void mode_command_callback(const std_msgs::msg::String::SharedPtr msg);
     void gripper_command_callback(const std_msgs::msg::Float64::SharedPtr msg);
     void reset_home_callback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                              std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void float_mode_callback(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                              std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     void publish_state();
+    void publish_mode_state();
 
     // Active controller (owned by exactly one of the two unique_ptrs below).
     std::unique_ptr<arx::Arx5CartesianController> cartesian_controller_;
@@ -52,6 +57,12 @@ class Arx5Ros2Node : public rclcpp::Node
     int joint_dof_ = 0;
     double gripper_width_ = 0.0;
     bool floating_ = false;
+    std::string state_topic_;
+    std::string command_topic_;
+    std::string mode_command_topic_;
+    std::string mode_state_topic_;
+    std::string joint_name_prefix_;
+    std::string current_mode_ = "HOLD";
 
     std::unique_ptr<arx::Gain> tracking_gain_;
     arx::Pose6d target_pose_ = arx::Pose6d::Zero();
@@ -61,11 +72,14 @@ class Arx5Ros2Node : public rclcpp::Node
     rclcpp::Time last_joint_command_log_time_;
 
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_state_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr eef_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gripper_pub_;
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr eef_command_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr joint_command_sub_;
+    rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr joint_trajectory_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr mode_command_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr gripper_command_sub_;
 
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_home_service_;

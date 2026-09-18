@@ -15,6 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
@@ -106,6 +107,7 @@ ament_target_dependencies(arx5_ros2_node
   rclcpp
   geometry_msgs
   sensor_msgs
+  trajectory_msgs
   std_msgs
   std_srvs
 )
