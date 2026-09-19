@@ -18,11 +18,14 @@ Arx5CartesianController::Arx5CartesianController(RobotConfig robot_config, Contr
 }
 
 Arx5CartesianController::Arx5CartesianController(std::string model, std::string interface_name)
-    : Arx5CartesianController::Arx5CartesianController(
-          RobotConfigFactory::get_instance().get_config(model),
-          ControllerConfigFactory::get_instance().get_config(
-              "cartesian_controller", RobotConfigFactory::get_instance().get_config(model).joint_dof),
-          interface_name)
+    : Arx5CartesianController(model, interface_name, "")
+{
+}
+
+Arx5CartesianController::Arx5CartesianController(std::string model, std::string interface_name, std::string config_file)
+    : Arx5CartesianController(load_robot_config(model, config_file),
+                              load_controller_config("cartesian_controller", load_robot_config(model, config_file).joint_dof, config_file),
+                              interface_name)
 {
 }
 

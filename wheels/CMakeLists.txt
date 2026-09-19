@@ -10,6 +10,17 @@ find_package(orocos_kdl REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Boost REQUIRED COMPONENTS container)
+find_package(yaml-cpp REQUIRED)
+if(TARGET yaml-cpp::yaml-cpp)
+    set(ARX5_YAML_CPP_TARGET yaml-cpp::yaml-cpp)
+else()
+    set(ARX5_YAML_CPP_TARGET yaml-cpp)
+endif()
+
+find_path(ARX5_YAML_CPP_INCLUDE_DIR yaml-cpp/yaml.h REQUIRED)
+include_directories(${ARX5_YAML_CPP_INCLUDE_DIR})
+set(ARX5_YAML_CPP_INCLUDE_FLAG "-I${ARX5_YAML_CPP_INCLUDE_DIR}")
+add_compile_options(${ARX5_YAML_CPP_INCLUDE_FLAG})
 
 
 execute_process(
@@ -45,6 +56,7 @@ pybind11_add_module(arx5_interface
     ${CMAKE_CURRENT_SOURCE_DIR}/arx5_interface/src/app/joint_controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/arx5_interface/src/app/cartesian_controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/arx5_interface/src/app/controller_base.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/arx5_interface/src/app/config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/arx5_interface/src/utils.cpp
 )
 
@@ -62,6 +74,7 @@ target_link_libraries(arx5_interface PRIVATE
     orocos-kdl
     pthread
     soem
+    ${ARX5_YAML_CPP_TARGET}
 )
 
 

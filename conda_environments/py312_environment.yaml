@@ -11,6 +11,7 @@ dependencies:
   - orocos-kdl
   - eigen
   - boost
+  - yaml-cpp
   - boost-cpp
   - spdlog
   - pybind11

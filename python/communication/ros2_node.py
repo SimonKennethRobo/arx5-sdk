@@ -48,6 +48,7 @@ class Arx5Ros2Node(Node):
         super().__init__("arx5_controller")
         self.declare_parameter("model", "X5")
         self.declare_parameter("interface", "can0")
+        self.declare_parameter("sdk_config_file", "")
         self.declare_parameter("control_mode", "cartesian")
         self.declare_parameter("publish_rate", 50.0)
         self.declare_parameter("auto_home", False)
@@ -57,6 +58,7 @@ class Arx5Ros2Node(Node):
 
         model = self.get_parameter("model").value
         interface = self.get_parameter("interface").value
+        sdk_config_file = str(self.get_parameter("sdk_config_file").value)
         self.control_mode = str(self.get_parameter("control_mode").value).lower()
         if self.control_mode not in ("cartesian", "joint"):
             raise ValueError("control_mode must be 'cartesian' or 'joint'")
@@ -67,14 +69,14 @@ class Arx5Ros2Node(Node):
         if self.joint_command_duration < 0:
             raise ValueError("joint_command_duration must be greater than zero")
 
-        robot_config = arx5.RobotConfigFactory.get_instance().get_config(model)
-        urdf_path = os.path.join(SDK_ROOT_DIR, "models", f"{model}.urdf")
-        if not os.path.isfile(urdf_path) or os.path.getsize(urdf_path) == 0:
-            raise FileNotFoundError(f"URDF file is missing or empty: {urdf_path}")
-        robot_config.urdf_path = urdf_path
+        robot_config = arx5.load_robot_config(model, sdk_config_file)
+        if not robot_config.urdf_path:
+            robot_config.urdf_path = os.path.join(SDK_ROOT_DIR, "models", f"{model}.urdf")
+        if not os.path.isfile(robot_config.urdf_path) or os.path.getsize(robot_config.urdf_path) == 0:
+            raise FileNotFoundError(f"URDF file is missing or empty: {robot_config.urdf_path}")
 
-        controller_config = arx5.ControllerConfigFactory.get_instance().get_config(
-            f"{self.control_mode}_controller", robot_config.joint_dof
+        controller_config = arx5.load_controller_config(
+            f"{self.control_mode}_controller", robot_config.joint_dof, sdk_config_file
         )
         controller_config.gravity_compensation = bool(self.get_parameter("gravity_compensation").value)
         controller_class = (

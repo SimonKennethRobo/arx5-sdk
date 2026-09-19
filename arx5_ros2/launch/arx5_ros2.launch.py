@@ -7,6 +7,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     model_arg = DeclareLaunchArgument("model", default_value="X5")
     interface_arg = DeclareLaunchArgument("interface", default_value="can0")
+    sdk_config_file_arg = DeclareLaunchArgument("sdk_config_file", default_value="")
     # control_mode_arg = DeclareLaunchArgument("control_mode", default_value="joint")
     control_mode_arg = DeclareLaunchArgument("control_mode", default_value="joint")
     publish_rate_arg = DeclareLaunchArgument("publish_rate", default_value="50.0")
@@ -35,6 +36,7 @@ def generate_launch_description():
             {
                 "model": LaunchConfiguration("model"),
                 "interface": LaunchConfiguration("interface"),
+                "sdk_config_file": LaunchConfiguration("sdk_config_file"),
                 "control_mode": LaunchConfiguration("control_mode"),
                 "publish_rate": LaunchConfiguration("publish_rate"),
                 "auto_home": LaunchConfiguration("auto_home"),
@@ -58,6 +60,7 @@ def generate_launch_description():
         [
             model_arg,
             interface_arg,
+            sdk_config_file_arg,
             control_mode_arg,
             publish_rate_arg,
             auto_home_arg,

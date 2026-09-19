@@ -13,11 +13,14 @@ Arx5JointController::Arx5JointController(RobotConfig robot_config, ControllerCon
 }
 
 Arx5JointController::Arx5JointController(std::string model, std::string interface_name)
-    : Arx5JointController::Arx5JointController(
-          RobotConfigFactory::get_instance().get_config(model),
-          ControllerConfigFactory::get_instance().get_config(
-              "joint_controller", RobotConfigFactory::get_instance().get_config(model).joint_dof),
-          interface_name)
+    : Arx5JointController(model, interface_name, "")
+{
+}
+
+Arx5JointController::Arx5JointController(std::string model, std::string interface_name, std::string config_file)
+    : Arx5JointController(load_robot_config(model, config_file),
+                          load_controller_config("joint_controller", load_robot_config(model, config_file).joint_dof, config_file),
+                          interface_name)
 {
 }
 
@@ -119,7 +122,7 @@ void Arx5JointController::calibrate_gripper()
     std::array<OD_Motor_Msg, 10> motor_msg = can_handle_.get_motor_msg();
     std::cout << "Fully-open joint position readout: " << motor_msg[robot_config_.gripper_motor_id].angle_actual_rad
               << std::endl;
-    std::cout << "  Please update the robot_config_.gripper_open_readout value in config.h to finish gripper "
+    std::cout << "  Please update the robot_config_.gripper_open_readout value in config/arx5.yaml to finish gripper "
                  "calibration."
               << std::endl;
     if (prev_running)

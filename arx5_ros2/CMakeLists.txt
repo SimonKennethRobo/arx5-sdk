@@ -26,6 +26,17 @@ find_package(kdl_parser REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Boost REQUIRED COMPONENTS container)
+find_package(yaml-cpp REQUIRED)
+if(TARGET yaml-cpp::yaml-cpp)
+    set(ARX5_YAML_CPP_TARGET yaml-cpp::yaml-cpp)
+else()
+    set(ARX5_YAML_CPP_TARGET yaml-cpp)
+endif()
+
+find_path(ARX5_YAML_CPP_INCLUDE_DIR yaml-cpp/yaml.h REQUIRED)
+include_directories(${ARX5_YAML_CPP_INCLUDE_DIR})
+set(ARX5_YAML_CPP_INCLUDE_FLAG "-I${ARX5_YAML_CPP_INCLUDE_DIR}")
+add_compile_options(${ARX5_YAML_CPP_INCLUDE_FLAG})
 
 # soem (EtherCAT master) has no CMake package config and, unlike the SDK's
 # other cmake deps, is not available as a ROS/apt package; it is only shipped
@@ -92,6 +103,7 @@ add_executable(arx5_ros2_node
   ${ARX5_SDK_DIR}/src/app/cartesian_controller.cpp
   ${ARX5_SDK_DIR}/src/app/joint_controller.cpp
   ${ARX5_SDK_DIR}/src/app/controller_base.cpp
+  ${ARX5_SDK_DIR}/src/app/config.cpp
   ${ARX5_SDK_DIR}/src/utils.cpp
 )
 
@@ -124,6 +136,7 @@ target_link_libraries(arx5_ros2_node
   ${ARX5_SOEM_LIBRARY}
   ${ARX5_LIBSTDCXX}
   ${Boost_LIBRARIES}
+  ${ARX5_YAML_CPP_TARGET}
 )
 
 if(ARX5_LIBSTDCXX)
@@ -147,6 +160,12 @@ install(TARGETS arx5_ros2_node
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
+)
+install(DIRECTORY ${ARX5_SDK_DIR}/config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
+install(DIRECTORY ${ARX5_SDK_DIR}/models/
+  DESTINATION share/${PROJECT_NAME}/models
 )
 
 if(BUILD_TESTING)

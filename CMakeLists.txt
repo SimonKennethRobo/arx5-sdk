@@ -14,6 +14,17 @@ find_package(kdl_parser REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Boost REQUIRED COMPONENTS container)
+find_package(yaml-cpp REQUIRED)
+if(TARGET yaml-cpp::yaml-cpp)
+    set(ARX5_YAML_CPP_TARGET yaml-cpp::yaml-cpp)
+else()
+    set(ARX5_YAML_CPP_TARGET yaml-cpp)
+endif()
+
+find_path(ARX5_YAML_CPP_INCLUDE_DIR yaml-cpp/yaml.h REQUIRED)
+include_directories(${ARX5_YAML_CPP_INCLUDE_DIR})
+set(ARX5_YAML_CPP_INCLUDE_FLAG "-I${ARX5_YAML_CPP_INCLUDE_DIR}")
+add_compile_options(${ARX5_YAML_CPP_INCLUDE_FLAG})
 
 add_compile_definitions(SDK_ROOT="${CMAKE_BINARY_DIR}/..")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -35,6 +46,7 @@ include_directories(
 add_library(ArxJointController SHARED
     src/app/joint_controller.cpp
     src/app/controller_base.cpp
+    src/app/config.cpp
     src/utils.cpp
 )
 target_link_libraries(ArxJointController
@@ -46,10 +58,12 @@ target_link_libraries(ArxJointController
     kdl_parser
     orocos-kdl
     soem
+    ${ARX5_YAML_CPP_TARGET}
 )
 add_library(ArxCartesianController SHARED
     src/app/cartesian_controller.cpp
     src/app/controller_base.cpp
+    src/app/config.cpp
     src/utils.cpp
 )
 target_link_libraries(ArxCartesianController
@@ -61,6 +75,7 @@ target_link_libraries(ArxCartesianController
     kdl_parser
     orocos-kdl
     soem
+    ${ARX5_YAML_CPP_TARGET}
 )
 
 # Hack for py310 (conda environment is slightly different from other python versions)
@@ -79,6 +94,7 @@ target_link_libraries(test_joint_controller
     kdl_parser
     orocos-kdl
     soem
+    ${ARX5_YAML_CPP_TARGET}
 )
 
 add_executable(test_cartesian_controller examples/test_cartesian_controller.cpp)
@@ -92,6 +108,7 @@ target_link_libraries(test_cartesian_controller
     kdl_parser
     orocos-kdl
     soem
+    ${ARX5_YAML_CPP_TARGET}
 )
 
 add_subdirectory(python)
@@ -107,3 +124,5 @@ install(FILES ${LIB_DIR}/libhardware.so ${LIB_DIR}/libsolver.so
 install(TARGETS ArxJointController ArxCartesianController
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/ DESTINATION ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/config)

@@ -6,6 +6,7 @@ RUN dnf install -y eigen3-devel
 RUN dnf install -y fmt-devel
 RUN dnf install -y spdlog-devel
 RUN dnf install -y boost-devel
+RUN dnf install -y yaml-cpp-devel
 RUN dnf install -y orocos-kdl-devel
 RUN dnf install -y urdfdom-devel
 RUN dnf install -y tinyxml2-devel
@@ -31,6 +32,7 @@ COPY src /root/arx5-sdk/arx5_interface/src
 COPY include /root/arx5-sdk/arx5_interface/include
 COPY python /root/arx5-sdk/arx5_interface/python
 COPY models /root/arx5-sdk/arx5_interface/models
+COPY config /root/arx5-sdk/arx5_interface/config
 COPY wheels/pyproject.toml /root/arx5-sdk/
 COPY wheels/setup.py /root/arx5-sdk/
 COPY wheels/CMakeLists.txt /root/arx5-sdk/

@@ -53,6 +53,9 @@ class CMakeBuild(build_ext):
 
 
 setup(
+    packages=["arx5_interface"],
+    package_data={"arx5_interface": ["config/*.yaml", "models/**/*.urdf", "models/*.urdf"]},
+    include_package_data=True,
     ext_modules=[CMakeExtension("arx5_interface")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,

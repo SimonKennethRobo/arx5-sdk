@@ -61,6 +61,7 @@ PYBIND11_MODULE(arx5_interface, m)
         .def("kd", &Gain::get_kd_ref, py::return_value_policy::reference);
     py::class_<Arx5JointController>(m, "Arx5JointController")
         .def(py::init<const std::string &, const std::string &>())
+        .def(py::init<const std::string &, const std::string &, const std::string &>())
         .def(py::init<RobotConfig, ControllerConfig, const std::string &>())
         .def("send_recv_once", &Arx5JointController::send_recv_once)
         .def("recv_once", &Arx5JointController::recv_once)
@@ -82,6 +83,7 @@ PYBIND11_MODULE(arx5_interface, m)
         .def("calibrate_gripper", &Arx5JointController::calibrate_gripper);
     py::class_<Arx5CartesianController>(m, "Arx5CartesianController")
         .def(py::init<const std::string &, const std::string &>())
+        .def(py::init<const std::string &, const std::string &, const std::string &>())
         .def(py::init<RobotConfig, ControllerConfig, const std::string &>())
         .def("set_eef_cmd", &Arx5CartesianController::set_eef_cmd)
         .def("set_eef_traj", &Arx5CartesianController::set_eef_traj)
@@ -142,6 +144,10 @@ PYBIND11_MODULE(arx5_interface, m)
         .def_readwrite("interpolation_method", &ControllerConfig::interpolation_method)
         .def_readwrite("default_preview_time", &ControllerConfig::default_preview_time)
         .def_readwrite("controller_dt", &ControllerConfig::controller_dt);
+    m.def("load_robot_config", &arx::load_robot_config, py::arg("robot_model"), py::arg("config_file") = "");
+    m.def("load_controller_config", &arx::load_controller_config, py::arg("controller_type"),
+          py::arg("joint_dof"), py::arg("config_file") = "");
+
     py::class_<RobotConfigFactory>(m, "RobotConfigFactory")
         .def_static("get_instance", &RobotConfigFactory::get_instance, py::return_value_policy::reference)
         .def("get_config", &RobotConfigFactory::get_config);

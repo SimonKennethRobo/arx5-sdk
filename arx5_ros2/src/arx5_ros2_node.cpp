@@ -45,6 +45,7 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
 {
     this->declare_parameter<std::string>("model", "X5");
     this->declare_parameter<std::string>("interface", "can0");
+    this->declare_parameter<std::string>("sdk_config_file", "");
     this->declare_parameter<std::string>("control_mode", "joint");
     this->declare_parameter<double>("publish_rate", 50.0);
     this->declare_parameter<bool>("auto_home", false);
@@ -70,6 +71,7 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
 
     std::string model = this->get_parameter("model").as_string();
     std::string interface = this->get_parameter("interface").as_string();
+    std::string sdk_config_file = this->get_parameter("sdk_config_file").as_string();
     control_mode_ = this->get_parameter("control_mode").as_string();
     std::transform(control_mode_.begin(), control_mode_.end(), control_mode_.begin(), ::tolower);
     if (control_mode_ != "cartesian" && control_mode_ != "joint")
@@ -93,18 +95,18 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     mode_state_topic_ = this->get_parameter("mode_state_topic").as_string();
     joint_name_prefix_ = this->get_parameter("joint_name_prefix").as_string();
 
-    arx::RobotConfig robot_config = arx::RobotConfigFactory::get_instance().get_config(model);
-    std::string urdf_path = std::string(ARX5_SDK_ROOT_DIR) + "/models/" + model + ".urdf";
-    if (!file_exists_nonempty(urdf_path))
+    arx::RobotConfig robot_config = arx::load_robot_config(model, sdk_config_file);
+    if (robot_config.urdf_path.empty())
+        robot_config.urdf_path = std::string(ARX5_SDK_ROOT_DIR) + "/models/" + model + ".urdf";
+    if (!file_exists_nonempty(robot_config.urdf_path))
     {
-        throw std::runtime_error("URDF file is missing or empty: " + urdf_path);
+        throw std::runtime_error("URDF file is missing or empty: " + robot_config.urdf_path);
     }
-    robot_config.urdf_path = urdf_path;
     joint_dof_ = robot_config.joint_dof;
     gripper_width_ = robot_config.gripper_width;
 
-    arx::ControllerConfig controller_config = arx::ControllerConfigFactory::get_instance().get_config(
-        control_mode_ + "_controller", robot_config.joint_dof);
+    arx::ControllerConfig controller_config = arx::load_controller_config(
+        control_mode_ + "_controller", robot_config.joint_dof, sdk_config_file);
     controller_config.gravity_compensation = this->get_parameter("gravity_compensation").as_bool();
 
     if (control_mode_ == "cartesian")
