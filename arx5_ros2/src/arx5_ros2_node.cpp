@@ -372,15 +372,23 @@ void Arx5Ros2Node::mode_command_callback(const std_msgs::msg::String::SharedPtr 
             const auto eef = controller_->get_eef_state();
             target_pose_ = eef.pose_6d;
             target_gripper_ = eef.gripper_pos;
-            if (floating_) send_target_after_float();
-            else { controller_->set_gain(*tracking_gain_); send_target(); }
+            // Use the SDK joint-controller defaults directly; HOLD should
+            // not inherit the ROS wrapper's softened gain scales.
+            const auto config = controller_->get_controller_config();
+            arx::Gain sdk_gain(config.default_kp, config.default_kd,
+                               config.default_gripper_kp, config.default_gripper_kd);
+            controller_->set_gain(sdk_gain);
+            send_target();
             floating_ = false;
             current_mode_ = "HOLD";
         }
         else if (mode == "DAMPING")
         {
+            // Native SDK damping: set_to_damping() installs the SDK default
+            // derivative damping and a fixed zero-velocity command. Do not
+            // enter the ROS wrapper's reduced-gain floating mode.
             controller_->set_to_damping();
-            floating_ = true;
+            floating_ = false;
             current_mode_ = "DAMPING";
         }
         else if (mode == "OCS2")
