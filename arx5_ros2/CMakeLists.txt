@@ -113,6 +113,8 @@ target_include_directories(arx5_ros2_node PRIVATE
   ${EIGEN3_INCLUDE_DIRS}
   ${orocos_kdl_INCLUDE_DIRS}
   ${kdl_parser_INCLUDE_DIRS}
+  # Jazzy installs kdl_parser.hpp one level deeper than the Foxy SDK expects.
+  /opt/ros/$ENV{ROS_DISTRO}/include/kdl_parser
 )
 
 ament_target_dependencies(arx5_ros2_node

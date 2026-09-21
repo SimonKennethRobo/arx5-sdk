@@ -205,7 +205,7 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
                                      std::bind(&Arx5Ros2Node::publish_state, this));
 
     RCLCPP_INFO(this->get_logger(), "ARX5 ready: model=%s, interface=%s, control_mode=%s, URDF=%s", model.c_str(),
-               interface.c_str(), control_mode_.c_str(), urdf_path.c_str());
+               interface.c_str(), control_mode_.c_str(), robot_config.urdf_path.c_str());
     RCLCPP_INFO(this->get_logger(), "Canonical arm topics: state=%s command=%s mode=%s",
                 state_topic_.c_str(), command_topic_.c_str(), mode_command_topic_.c_str());
     publish_mode_state();

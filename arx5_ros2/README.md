@@ -50,17 +50,17 @@ standalone arm tooling. Use `control_mode:=joint` for the Go2-X5 graph.
 
 ## Parameters
 
-| Name                       | Type   | Default       | Notes                                        |
-| -------------------------- | ------ | ------------- | -------------------------------------------- |
-| `model`                  | string | `X5`        | `X5`, `X5_umi`, `L5`, `X7_left`, ... |
-| `interface`              | string | `can0`      | CAN interface name                           |
-| `sdk_config_file`        | string | empty       | SDK YAML path; empty uses `config/arx5.yaml` |
-| `control_mode`           | string | `joint` | `cartesian` or `joint`                   |
-| `publish_rate`           | double | `50.0`      | Hz, state publish rate                       |
-| `auto_home`              | bool   | `false`     | Move to home on startup                      |
-| `gravity_compensation`   | bool   | `true`      |                                              |
-| `base_frame`             | string | `base_link` | `frame_id` for `~/eef_state`             |
-| `joint_command_duration` | double | `0.0`       | seconds; preview time for joint commands     |
+| Name                       | Type   | Default       | Notes                                         |
+| -------------------------- | ------ | ------------- | --------------------------------------------- |
+| `model`                  | string | `X5`        | `X5`, `X5_umi`, `L5`, `X7_left`, ...  |
+| `interface`              | string | `can0`      | CAN interface name                            |
+| `sdk_config_file`        | string | empty         | SDK YAML path; empty uses`config/arx5.yaml` |
+| `control_mode`           | string | `joint`     | `cartesian` or `joint`                    |
+| `publish_rate`           | double | `50.0`      | Hz, state publish rate                        |
+| `auto_home`              | bool   | `false`     | Move to home on startup                       |
+| `gravity_compensation`   | bool   | `true`      |                                               |
+| `base_frame`             | string | `base_link` | `frame_id` for `~/eef_state`              |
+| `joint_command_duration` | double | `0.0`       | seconds; preview time for joint commands      |
 
 ## Build
 
