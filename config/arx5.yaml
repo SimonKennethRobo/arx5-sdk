@@ -9,7 +9,7 @@ robots:
     ee_vel_max: [0.6, 0.6, 0.6, 1.8, 1.8, 1.8]
     motor_id: [1, 2, 4, 5, 6, 7]
     motor_type: [EC_A4310, EC_A4310, EC_A4310, DM_J4310, DM_J4310, DM_J4310]
-    gripper: {vel_max: 0.3, torque_max: 1.5, width: 0.088, open_readout: 5.03, motor_id: 8, motor_type: DM_J4310}
+    gripper: {vel_max: 0.3, torque_max: 1.5, width: 0.088, open_readout: 3.59549, motor_id: 8, motor_type: DM_J4310}
     gravity_vector: [0.0, 0.0, -9.807]
     base_link_name: base_link
     eef_link_name: eef_link

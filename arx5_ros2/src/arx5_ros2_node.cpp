@@ -67,6 +67,7 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     this->declare_parameter<std::string>("command_topic", "/go2_x5/arm/command/target");
     this->declare_parameter<std::string>("mode_command_topic", "/go2_x5/arm/mode/target");
     this->declare_parameter<std::string>("mode_state_topic", "/go2_x5/arm/driver/mode");
+    this->declare_parameter<std::string>("gripper_command_topic", "/go2_x5/arm/gripper/command");
     this->declare_parameter<std::string>("joint_name_prefix", "x5_joint");
 
     std::string model = this->get_parameter("model").as_string();
@@ -93,6 +94,7 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     command_topic_ = this->get_parameter("command_topic").as_string();
     mode_command_topic_ = this->get_parameter("mode_command_topic").as_string();
     mode_state_topic_ = this->get_parameter("mode_state_topic").as_string();
+    gripper_command_topic_ = this->get_parameter("gripper_command_topic").as_string();
     joint_name_prefix_ = this->get_parameter("joint_name_prefix").as_string();
 
     arx::RobotConfig robot_config = arx::load_robot_config(model, sdk_config_file);
@@ -193,6 +195,10 @@ Arx5Ros2Node::Arx5Ros2Node() : rclcpp::Node("arx5_controller")
     }
     gripper_command_sub_ = this->create_subscription<std_msgs::msg::Float64>(
         "~/gripper_cmd", 10, std::bind(&Arx5Ros2Node::gripper_command_callback, this, std::placeholders::_1));
+    // Canonical gripper width command (m); the private endpoint above is kept
+    // for existing scripts.
+    canonical_gripper_command_sub_ = this->create_subscription<std_msgs::msg::Float64>(
+        gripper_command_topic_, 10, std::bind(&Arx5Ros2Node::gripper_command_callback, this, std::placeholders::_1));
 
     reset_home_service_ = this->create_service<std_srvs::srv::Trigger>(
         "~/reset_to_home", std::bind(&Arx5Ros2Node::reset_home_callback, this, std::placeholders::_1,
@@ -362,9 +368,18 @@ void Arx5Ros2Node::mode_command_callback(const std_msgs::msg::String::SharedPtr 
     {
         if (mode == "HOME")
         {
+            // reset_to_home() blocks the executor for ~1s; a burst of HOME
+            // messages would otherwise replay back-to-back resets.
+            if (current_mode_ == "HOME")
+            {
+                return;
+            }
             controller_->reset_to_home();
             floating_ = false;
             controller_->set_gain(*tracking_gain_);
+            target_joint_ = arx::VecDoF::Zero(joint_dof_);
+            target_pose_ = controller_->get_home_pose();
+            target_gripper_ = gripper_width_;
             current_mode_ = "HOME";
         }
         else if (mode == "HOLD")

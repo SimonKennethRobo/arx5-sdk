@@ -61,6 +61,7 @@ class Arx5Ros2Node : public rclcpp::Node
     std::string command_topic_;
     std::string mode_command_topic_;
     std::string mode_state_topic_;
+    std::string gripper_command_topic_;
     std::string joint_name_prefix_;
     std::string current_mode_ = "HOLD";
 
@@ -81,6 +82,7 @@ class Arx5Ros2Node : public rclcpp::Node
     rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr joint_trajectory_sub_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr mode_command_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr gripper_command_sub_;
+    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr canonical_gripper_command_sub_;
 
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_home_service_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr float_mode_service_;
